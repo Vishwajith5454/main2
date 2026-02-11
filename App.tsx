@@ -8,48 +8,13 @@ import { DEFAULT_SERVICES } from './constants';
 import { ServiceLink } from './types';
 import { motion } from 'framer-motion';
 
-const HOME_URL = 'https://vs-home.netlify.app';
-
 const App: React.FC = () => {
-  const [accessGranted, setAccessGranted] = useState<boolean | null>(null);
   const [services, setServices] = useState<ServiceLink[]>([]);
   const [isCreatorOpen, setIsCreatorOpen] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    const checkAccessAndInitialize = () => {
-      // 1. Check for valid access conditions
-      const isAdmin = localStorage.getItem('vs_admin_access') === 'true';
-      const hasSessionAccess = sessionStorage.getItem('vs_portal_session_access') === 'true';
-      
-      const urlParams = new URLSearchParams(window.location.search);
-      const isAdminBypass = urlParams.get('admin') === 'true';
-      const isVerifiedFromUrl = urlParams.get('source') === 'verified' || urlParams.get('auth') === 'success';
-
-      const referrer = document.referrer;
-      // Access granted if coming from another site (non-empty referrer not matching current hostname)
-      const isFromExternal = referrer !== "" && !referrer.includes(window.location.hostname);
-
-      if (isAdmin || hasSessionAccess || isVerifiedFromUrl || isAdminBypass || isFromExternal) {
-        // Grant access and persist for the session
-        sessionStorage.setItem('vs_portal_session_access', 'true');
-        if (isAdminBypass) localStorage.setItem('vs_admin_access', 'true');
-        
-        setAccessGranted(true);
-        
-        // Cleanup URL params for cleaner UX
-        if (isVerifiedFromUrl || isAdminBypass) {
-          window.history.replaceState({}, document.title, window.location.pathname);
-        }
-      } else {
-        // DIRECT ENTRY DETECTED - Redirect to Home
-        window.location.href = HOME_URL;
-      }
-    };
-
-    checkAccessAndInitialize();
-
-    // Load Services
+    // 1. Load Services from Local Storage or Defaults
     const saved = localStorage.getItem('vs_services');
     if (saved) {
       try {
@@ -61,6 +26,7 @@ const App: React.FC = () => {
       setServices(DEFAULT_SERVICES);
     }
     
+    // 2. Trigger enter animation
     const timer = setTimeout(() => setIsLoaded(true), 150);
     return () => clearTimeout(timer);
   }, []);
@@ -70,22 +36,6 @@ const App: React.FC = () => {
     setServices(updatedServices);
     localStorage.setItem('vs_services', JSON.stringify(updatedServices));
   };
-
-  // While checking access, show a minimalist tech loader
-  if (accessGranted === null) {
-    return (
-      <div className="bg-[#0a0f1d] min-h-screen flex items-center justify-center">
-        <motion.div 
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-          className="w-10 h-10 border-2 border-blue-500/20 border-t-blue-500 rounded-full"
-        />
-      </div>
-    );
-  }
-
-  // If we got here and accessGranted is false (rare due to immediate redirect), don't render content
-  if (!accessGranted) return null;
 
   return (
     <div className="relative min-h-screen w-full flex flex-col font-sans selection:bg-blue-500/30 overflow-x-hidden">
