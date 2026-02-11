@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import AnimatedBackground from './components/AnimatedBackground';
 import UserHeader from './components/UserHeader';
@@ -15,26 +16,40 @@ const App: React.FC = () => {
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    // 1. Access Logic: Check Referral Source or Admin Status
+    // 1. Robust Access Logic
     const checkAccess = () => {
+      // Check for persistent admin access
       const isAdmin = localStorage.getItem('vs_admin_access') === 'true';
       
-      // If we have a referrer and it's not our own site, grant access
+      // Check for session-based access (granted earlier in the same session)
+      const hasSessionAccess = sessionStorage.getItem('vs_portal_session_access') === 'true';
+      
+      // Check for URL parameters (e.g., ?source=verified or ?auth=success)
+      const urlParams = new URLSearchParams(window.location.search);
+      const isVerifiedFromUrl = urlParams.get('source') === 'verified' || urlParams.get('auth') === 'success';
+
+      // Check for Referrer (may be empty due to browser security/Referrer-Policy)
       const referrer = document.referrer;
       const isInternalReferrer = referrer && referrer.includes(window.location.hostname);
       const hasExternalReferrer = referrer !== "" && !isInternalReferrer;
 
-      if (isAdmin || hasExternalReferrer) {
+      if (isAdmin || hasSessionAccess || isVerifiedFromUrl || hasExternalReferrer) {
+        // If granted, store in sessionStorage so refresh doesn't block the user
+        sessionStorage.setItem('vs_portal_session_access', 'true');
         setAccessGranted(true);
+        
+        // Clean up URL parameters for a cleaner UX
+        if (isVerifiedFromUrl) {
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
       } else {
-        // If no referrer and not admin, we deny (direct entry)
         setAccessGranted(false);
       }
     };
 
     checkAccess();
 
-    // 2. Load Services from LocalStorage or Defaults
+    // 2. Load Services
     const saved = localStorage.getItem('vs_services');
     if (saved) {
       try {
@@ -46,13 +61,13 @@ const App: React.FC = () => {
       setServices(DEFAULT_SERVICES);
     }
     
-    // Smooth reveal animation trigger
     const timer = setTimeout(() => setIsLoaded(true), 150);
     return () => clearTimeout(timer);
   }, []);
 
   const handleAdminAuth = () => {
     localStorage.setItem('vs_admin_access', 'true');
+    sessionStorage.setItem('vs_portal_session_access', 'true');
     setAccessGranted(true);
   };
 
@@ -62,12 +77,12 @@ const App: React.FC = () => {
     localStorage.setItem('vs_services', JSON.stringify(updatedServices));
   };
 
-  // Prevent UI flashing while checking credentials
   if (accessGranted === null) {
-    return <div className="bg-[#0a0f1d] min-h-screen" />;
+    return <div className="bg-[#0a0f1d] min-h-screen flex items-center justify-center">
+      <div className="w-12 h-12 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
+    </div>;
   }
 
-  // Show access denied screen for direct link entries
   if (accessGranted === false) {
     return <AccessDenied onAdminLogin={handleAdminAuth} />;
   }
@@ -80,8 +95,8 @@ const App: React.FC = () => {
 
       <main className="flex-grow container mx-auto px-4 py-20 md:py-32 flex flex-col items-center z-10">
         
-        {/* Hero Section - Fully Responsive Scaling */}
-        <div className="text-center mb-12 md:mb-24 px-2 w-full max-w-5xl">
+        {/* Hero Section */}
+        <div className="text-center mb-12 md:mb-24 px-4 w-full max-w-5xl">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: isLoaded ? 1 : 0, y: isLoaded ? 0 : 20 }}
@@ -112,7 +127,7 @@ const App: React.FC = () => {
           </motion.div>
         </div>
 
-        {/* Responsive Grid Layout */}
+        {/* Responsive Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8 w-full max-w-7xl px-2 md:px-6">
           {services.map((service, index) => (
             <ServiceCard 
@@ -124,7 +139,6 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      {/* Footer */}
       <footer className="w-full py-12 text-center z-10 opacity-30 px-6">
         <div className="h-px w-24 mx-auto bg-blue-500/20 mb-10" />
         <p className="text-gray-500 text-[10px] font-bold tracking-[0.4em] uppercase">
